@@ -1,0 +1,1354 @@
+function[updated_SSA_swarm] = RL_SSA_Swarm_Creation(Active_Swarm,c1,Food_Location,Number_of_Salp)
+fobj_Fitness = @RL_Fitness_Value;
+randfixedsum = @randnumgen;
+%% Modification of Bin Allocation on Transit Center
+%% Model Parameter
+Number_of_Hospital = 3;
+Number_of_Transit_Center = 2;
+Number_of_Processing_Center = 2;
+Number_of_Subcenter = 3;
+Number_of_Disposal_Unit = 1;
+Number_of_Recycling_Unit = 1;
+Types_of_Bin = 4;
+Cap_Mat1 = [1250,1250,1250,1250;1150,1150,1150,1150];
+Cap_Mat2 = [3000,3000,2500;3800,3200,2800];
+Cap_Mat3 = [1000000];
+Cap_Mat4 = [1000000];
+Tran_Cent_Inv_Cap_Mat = [500,500,500,500;500,500,500,500];
+Present_Tran_Cent_Inv_Mat = [0,0,0,0;0,0,0,0];
+Incinator_ratio = 0.5;
+Waste_weight_ratio = [60,60,60,60];
+Waste_recovery_ratio = [0.75,0.75,0.75,0.75];
+c2_choice = 0.01;
+ranlimit = 0.95;
+Time_Period = 10;
+Actual_Demand = 450*ones(Number_of_Hospital,(Types_of_Bin*Time_Period));
+for tp_index = 1:Time_Period
+    Bin_Allocation_on_TC = zeros((Number_of_Hospital*Types_of_Bin),Number_of_Transit_Center);
+    PseudoBin_Allocation_on_TC = Bin_Allocation_on_TC;
+    Bin_Inventory_Adjustment_on_TC = Bin_Allocation_on_TC;
+    Bin_Allocation_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+        (Number_of_Processing_Center*Number_of_Subcenter));
+    Waste_Allocation_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+        (Number_of_Processing_Center*Number_of_Subcenter));
+    Waste_Recovery_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+        (Number_of_Processing_Center*Number_of_Subcenter));
+    ffound = 0;
+    while ffound == 0
+        for i = 1:Number_of_Hospital
+            for j = 1:Types_of_Bin
+                ratiowise_dist_mat = zeros(Number_of_Salp,Number_of_Transit_Center);
+                for sind = 1:Number_of_Salp
+                    checking_qntywise_dist_mat = zeros(1,Number_of_Transit_Center);
+                    for tcind = 1:Number_of_Transit_Center
+                        checking_qntywise_dist_mat(1,tcind) = ...
+                            (Active_Swarm.Salp(sind).Time_Period(tp_index).Bin_Allocation_on_TC...
+                            (((i-1)*Types_of_Bin)+j,tcind));  
+                    end
+                    if (all(checking_qntywise_dist_mat == 0)) == 1
+                        ratiowise_dist_mat(sind,:) = zeros(1,Number_of_Transit_Center);
+                    else
+                        for tcind = 1:Number_of_Transit_Center
+                            ratiowise_dist_mat(sind,tcind) = ...
+                                checking_qntywise_dist_mat(1,tcind)/...
+                                (sum(checking_qntywise_dist_mat(1,:)));
+                        end
+                    end   
+                end
+                max_ratio = max((max(ratiowise_dist_mat,[],1)),[],2);
+                min_ratio = min((min(ratiowise_dist_mat,[],1)),[],2);
+                curr_ratio = zeros(1,Number_of_Transit_Center);
+                checking_candidate_ratio = zeros(1,Number_of_Transit_Center);
+                for crind = 1:Number_of_Transit_Center
+                    checking_candidate_ratio(1,crind) = (Food_Location.Time_Period...
+                        (tp_index).Bin_Allocation_on_TC...
+                        (((i-1)*Types_of_Bin)+j,crind));
+                end
+                for crind = 1:Number_of_Transit_Center
+                    batc_infeasible1 = 1;
+                    c2 = rand();
+                    c3 = -1 + rand()*(1 + 1);
+                    if (any(checking_candidate_ratio > 0)) == 1
+                        candidate_ratio = ((Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                            (((i-1)*Types_of_Bin)+j,crind))/...
+                            (sum(Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                            (((i-1)*Types_of_Bin)+j,:))));
+                    else
+                        candidate_ratio = 0;
+                    end
+                    if candidate_ratio <= ((c1)*((max_ratio-min_ratio)*c2_choice + min_ratio))
+                        if (any(checking_candidate_ratio > 0)) == 0 && max_ratio == 0 && min_ratio == 0
+                            current_ratio = 0;
+                        else
+                            current_ratio = ((Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,crind))/...
+                                (sum(Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,:)))) + ...
+                                (c1)*((max_ratio-min_ratio)*c2 + min_ratio);
+                        end
+                    else
+                        if c3 < 0
+                            while batc_infeasible1 == 1
+                                current_ratio = ((Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                                    (((i-1)*Types_of_Bin)+j,crind))/...
+                                    (sum(Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                                    (((i-1)*Types_of_Bin)+j,:)))) - ...
+                                    (c1)*((max_ratio-min_ratio)*c2 + min_ratio);
+                                if current_ratio > 0
+                                    batc_infeasible1 = 0;
+                                else
+                                    c2 = rand();
+                                end
+                            end
+                        else
+                            current_ratio = ((Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,crind))/...
+                                (sum(Food_Location.Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,:)))) + ...
+                                (c1)*((max_ratio-min_ratio)*c2 + min_ratio);
+                        end
+                    end
+                    curr_ratio(1,crind) = current_ratio;
+                end
+                TC_dist = zeros(1,Number_of_Transit_Center);
+                demand = Actual_Demand(i,((tp_index-1)*Types_of_Bin)+j);
+                if (any(curr_ratio > 0)) == 1
+                    for tcind = 1:(Number_of_Transit_Center-1)
+                        TC_dist(1,tcind) = round(demand*(curr_ratio(1,tcind)/sum(curr_ratio(1,:))));
+                    end
+                    partial_sum = sum(TC_dist(1,:));
+                    TC_dist(1,Number_of_Transit_Center) = demand - partial_sum;
+                else
+                    rfx = -1*ones(1,Number_of_Transit_Center);
+                    while sum(round(rfx))~= demand
+                        [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                        rfx = round(rfx);
+                    end
+                    TC_dist = rfx; 
+                end
+                
+                rr1 = rand();
+                if rr1 > ranlimit
+                    rfx = -1*ones(1,Number_of_Transit_Center);
+                    while sum(round(rfx))~= demand
+                        [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                        rfx = round(rfx);
+                    end
+                    TC_dist = rfx;
+                end
+                Bin_Allocation_on_TC((((i-1)*Types_of_Bin)+j),:) = TC_dist;
+            end 
+        end
+        for i = 1:Number_of_Transit_Center
+            for j = 1:Types_of_Bin
+                present_num_of_total_bin = 0;
+                for k = 1:Number_of_Hospital
+                    present_num_of_total_bin = present_num_of_total_bin +...
+                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                end
+                if ((present_num_of_total_bin-Cap_Mat1(i,j))+Present_Tran_Cent_Inv_Mat(i,j)) > ...
+                        Tran_Cent_Inv_Cap_Mat(i,j)
+                    ffound = 0;
+                    break
+                else
+                    ffound = 1;
+                end
+            end
+            if ffound == 0
+                break
+            end
+        end        
+        if ffound == 1
+            TrBin_Allocation_on_TC = Bin_Allocation_on_TC;
+            for i = 1:Number_of_Transit_Center
+                for j = 1:Types_of_Bin
+                    number_of_total_bin = 0;
+                    for k = 1:Number_of_Hospital
+                        number_of_total_bin = number_of_total_bin +...
+                            Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                    end
+                    hoswise_dev_dist_mat = zeros(Number_of_Salp,Number_of_Hospital);
+                    for sind2 = 1:Number_of_Salp
+                        for hind = 1:Number_of_Hospital
+                            hoswise_dev_dist_mat(sind2,hind) = ...
+                                Active_Swarm.Salp(sind2).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                (((hind-1)*Types_of_Bin)+j,i);
+                        end
+                    end
+                    max_dev = max((max(hoswise_dev_dist_mat,[],1)),[],2);
+                    min_dev = min((min(hoswise_dev_dist_mat,[],1)),[],2);
+                    if (number_of_total_bin-Cap_Mat1(i,j)) > 0
+                        inventoy_adjustment_amount = (number_of_total_bin-Cap_Mat1(i,j));
+                        Sumrfxhd = inventoy_adjustment_amount;
+                        pos_gen = 0;
+                        while pos_gen == 0
+                            curr_dev = zeros(Number_of_Hospital,1);
+                            for hind2 = 1:Number_of_Hospital
+                                batc_infeasible2 = 1;
+                                c2 = rand();
+                                c3 = -1 + rand()*(1 + 1);
+                                candidate_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                    (((hind2-1)*Types_of_Bin)+j,i);
+                                if candidate_dev <= ((c1)*((max_dev-min_dev)*c2_choice + min_dev))
+                                    current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                        (((hind2-1)*Types_of_Bin)+j,i) + ...
+                                        (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                else
+                                    if c3 < 0
+                                        while batc_infeasible2 == 1
+                                            current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                                (((hind2-1)*Types_of_Bin)+j,i) - ...
+                                                (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                            if current_dev > 0
+                                                batc_infeasible2 = 0;
+                                            else
+                                                c2 = rand();
+                                            end
+                                        end
+                                    else
+                                        current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i) + ...
+                                            (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                    end
+                                end
+                                curr_dev(hind2,1) = current_dev;
+                            end
+                            Hdev_dist = zeros(Number_of_Hospital,1);
+                            demand = Sumrfxhd;
+                            if (any(curr_dev > 0)) == 1
+                                for hdevind = 1:(Number_of_Hospital-1)
+                                    Hdev_dist(hdevind,1) = round(demand*(curr_dev(hdevind,1)/sum(curr_dev(:,1))));
+                                end
+                                partial_sum = sum(Hdev_dist(:,1));
+                                Hdev_dist(Number_of_Hospital,1) = demand - partial_sum;
+                            else
+                                rfx = -1*ones(Number_of_Hospital,1);
+                                while sum(round(rfx))~= demand
+                                    [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                    rfx = round(rfx);
+                                end
+                                Hdev_dist = rfx; 
+                            end
+                            rr = rand();
+                            if rr > ranlimit
+                                rfx = -1*ones(Number_of_Hospital,1);
+                                while sum(round(rfx))~= demand
+                                    [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                    rfx = round(rfx);
+                                end
+                                Hdev_dist = rfx;
+                            end
+                            for k = 1:Number_of_Hospital
+                                PseudoBin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) =...
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) - Hdev_dist(k,1);
+                                
+                                if PseudoBin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) < 0
+                                    pos_gen = 0;
+                                    break
+                                else
+                                    pos_gen = 1;
+                                end
+                            end
+                            if pos_gen == 1
+                                for k = 1:Number_of_Hospital
+                                    Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = Hdev_dist(k,1);
+                                    
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) - Hdev_dist(k,1);
+                                end
+                            end
+                        end
+                        Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) + ...
+                            inventoy_adjustment_amount;  
+                    elseif (Cap_Mat1(i,j)-number_of_total_bin) > 0
+                        if Present_Tran_Cent_Inv_Mat(i,j) > 0
+                            if (Cap_Mat1(i,j)-number_of_total_bin) > ...
+                                    Present_Tran_Cent_Inv_Mat(i,j)
+                                inventoy_adjustment_amount = Present_Tran_Cent_Inv_Mat(i,j);
+                                Sumrfxhd = inventoy_adjustment_amount;
+                                curr_dev = zeros(Number_of_Hospital,1);
+                                for hind2 = 1:Number_of_Hospital
+                                    batc_infeasible2 = 1;
+                                    c2 = rand();
+                                    c3 = -1 + rand()*(1 + 1);
+                                    candidate_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                        (((hind2-1)*Types_of_Bin)+j,i);
+                                    if candidate_dev <= ((c1)*((max_dev-min_dev)*c2_choice + min_dev))
+                                        current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i) + ...
+                                            (c1)*((max_dev-min_dev)*c2 + min_dev);  
+                                    else
+                                        if c3 < 0
+                                            while batc_infeasible2 == 1
+                                                current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                                    (((hind2-1)*Types_of_Bin)+j,i) - ...
+                                                    (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                                if current_dev > 0
+                                                    batc_infeasible2 = 0;
+                                                else
+                                                    c2 = rand();
+                                                end
+                                            end
+                                        else
+                                            current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                                (((hind2-1)*Types_of_Bin)+j,i) + ...
+                                                (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                        end
+                                    end
+                                    curr_dev(hind2,1) = current_dev;
+                                end
+                                Hdev_dist = zeros(Number_of_Hospital,1);
+                                demand = Sumrfxhd;
+                                if (any(curr_dev > 0)) == 1
+                                    for hdevind = 1:(Number_of_Hospital-1)
+                                        Hdev_dist(hdevind,1) = round(demand*(curr_dev(hdevind,1)/sum(curr_dev(:,1))));
+                                    end
+                                    partial_sum = sum(Hdev_dist(:,1));
+                                    Hdev_dist(Number_of_Hospital,1) = demand - partial_sum;
+                                else
+                                    rfx = -1*ones(Number_of_Hospital,1);
+                                    while sum(round(rfx))~= demand
+                                        [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                        rfx = round(rfx);
+                                    end
+                                    Hdev_dist = rfx;
+                                end
+                                rr = rand();
+                                if rr > ranlimit
+                                    rfx = -1*ones(Number_of_Hospital,1);
+                                    while sum(round(rfx))~= demand
+                                        [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                        rfx = round(rfx);
+                                    end
+                                    Hdev_dist = rfx;
+                                end
+                                for k = 1:Number_of_Hospital
+                                    Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = Hdev_dist(k,1);
+                                    
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) + Hdev_dist(k,1);
+                                end
+                                Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) - ...
+                                    inventoy_adjustment_amount;
+                            elseif Present_Tran_Cent_Inv_Mat(i,j) > ...
+                                    (Cap_Mat1(i,j)-number_of_total_bin)
+                                inventoy_adjustment_amount = (Cap_Mat1(i,j)-number_of_total_bin);
+                                Sumrfxhd = inventoy_adjustment_amount;
+                                curr_dev = zeros(Number_of_Hospital,1);
+                                for hind2 = 1:Number_of_Hospital
+                                    batc_infeasible2 = 1;
+                                    c2 = rand();
+                                    c3 = -1 + rand()*(1 + 1);
+                                    candidate_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                        (((hind2-1)*Types_of_Bin)+j,i);
+                                    if candidate_dev <= ((c1)*((max_dev-min_dev)*c2_choice + min_dev))
+                                        current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i) + ...
+                                            (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                    else
+                                        if c3 < 0
+                                            while batc_infeasible2 == 1
+                                                current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                                    (((hind2-1)*Types_of_Bin)+j,i) - ...
+                                                    (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                                if current_dev > 0
+                                                    batc_infeasible2 = 0;
+                                                else
+                                                    c2 = rand();
+                                                end
+                                            end
+                                        else
+                                            current_dev = Food_Location.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                                (((hind2-1)*Types_of_Bin)+j,i) + ...
+                                                (c1)*((max_dev-min_dev)*c2 + min_dev);
+                                        end
+                                    end
+                                    curr_dev(hind2,1) = current_dev;
+                                end
+                                Hdev_dist = zeros(Number_of_Hospital,1);
+                                demand = Sumrfxhd;
+                                if (any(curr_dev > 0)) == 1
+                                    for hdevind = 1:(Number_of_Hospital-1)
+                                        Hdev_dist(hdevind,1) = round(demand*(curr_dev(hdevind,1)/sum(curr_dev(:,1))));
+                                    end
+                                    partial_sum = sum(Hdev_dist(:,1));
+                                    Hdev_dist(Number_of_Hospital,1) = demand - partial_sum;
+                                else
+                                    rfx = -1*ones(Number_of_Hospital,1);
+                                    while sum(round(rfx))~= demand
+                                        [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                        rfx = round(rfx);
+                                    end
+                                    Hdev_dist = rfx;
+                                end
+                                rr = rand();
+                                if rr > ranlimit
+                                    rfx = -1*ones(Number_of_Hospital,1);
+                                    while sum(round(rfx))~= demand
+                                        [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                        rfx = round(rfx);
+                                    end
+                                    Hdev_dist = rfx;
+                                end
+                                for k = 1:Number_of_Hospital
+                                    Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = Hdev_dist(k,1);
+                                    
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) + Hdev_dist(k,1);
+                                end
+                                Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) - ...
+                                    inventoy_adjustment_amount;
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    feas_pc_dist = 0;
+    while feas_pc_dist == 0
+        for i = 1:Number_of_Transit_Center
+            for j = 1:Types_of_Bin
+                Number_of_total_bin = 0;
+                for k = 1:Number_of_Hospital
+                    Number_of_total_bin = Number_of_total_bin + Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                end
+                PCwise_dist_mat = zeros(Number_of_Salp,Number_of_Processing_Center);
+                for sind3 = 1:Number_of_Salp
+                    for pcind = 1:Number_of_Processing_Center
+                            trns_amnt_on_pc = sum(Active_Swarm.Salp(sind3).Time_Period(tp_index).Bin_Allocation_on_PC...
+                            (((i-1)*Types_of_Bin)+j,...
+                            (((pcind-1)*Number_of_Subcenter)+1:(pcind*Number_of_Subcenter))));
+                        PCwise_dist_mat(sind3,pcind) = trns_amnt_on_pc;
+                    end
+                end
+                PCratiowise_dist_mat = zeros(Number_of_Salp,Number_of_Processing_Center);
+                for sind3 = 1:Number_of_Salp
+                    if (any(PCratiowise_dist_mat(sind3,:) > 0)) == 1
+                        for pcind = 1:Number_of_Processing_Center
+                            PCratiowise_dist_mat(sind3,pcind) = ...
+                                (PCwise_dist_mat(sind3,pcind))/(sum(PCwise_dist_mat(sind3,:)));
+                        end
+                    end
+                end
+                max_ratio_pc = max((max(PCratiowise_dist_mat,[],1)),[],2);
+                min_ratio_pc = min((min(PCratiowise_dist_mat,[],1)),[],2);
+                curr_ratio_pc = zeros(1,Number_of_Processing_Center);
+                Food_pc_dist = zeros(1,Number_of_Processing_Center);
+                Food_pc_ratio = zeros(1,Number_of_Processing_Center);
+                for pcind = 1:Number_of_Processing_Center
+                    trns_amnt_on_pcfd = sum(Food_Location.Time_Period(tp_index).Bin_Allocation_on_PC...
+                        (((i-1)*Types_of_Bin)+j,...
+                        (((pcind-1)*Number_of_Subcenter)+1:(pcind*Number_of_Subcenter))));
+                    Food_pc_dist(1,pcind) = trns_amnt_on_pcfd;
+                end
+                for pcind = 1:Number_of_Processing_Center
+                    if (any(Food_pc_dist > 0)) == 1
+                    Food_pc_ratio(1,pcind) = ...
+                            (Food_pc_dist(1,pcind))/(sum(Food_pc_dist(1,:)));
+                    end
+                end
+                for pcind = 1:Number_of_Processing_Center
+                    batc_infeasible4 = 1;
+                    c2 = rand();
+                    c3 = -1 + rand()*(1 + 1);
+                    candidate_ratio_pc = Food_pc_ratio(1,pcind);
+                    if candidate_ratio_pc <= ((c1)*((max_ratio_pc-min_ratio_pc)*c2_choice + min_ratio_pc))
+                        if (any(Food_pc_ratio > 0)) == 0 && max_ratio_pc == 0 && min_ratio_pc == 0
+                            current_ratio_pc = 0;
+                        else
+                            current_ratio_pc = Food_pc_ratio(1,pcind) + ...
+                                (c1)*((max_ratio_pc-min_ratio_pc)*c2 + min_ratio_pc);
+                        end
+                    else
+                        if c3 < 0
+                            while batc_infeasible4 == 1
+                                current_ratio_pc = Food_pc_ratio(1,pcind) - ...
+                                    (c1)*((max_ratio_pc-min_ratio_pc)*c2 + min_ratio_pc);
+                                if current_ratio_pc > 0
+                                    batc_infeasible4 = 0;
+                                else
+                                    c2 = rand();
+                                end
+                            end
+                        else
+                            current_ratio_pc = Food_pc_ratio(1,pcind) + ...
+                                (c1)*((max_ratio_pc-min_ratio_pc)*c2 + min_ratio_pc);
+                        end
+                    end
+                    curr_ratio_pc(1,pcind) = current_ratio_pc;
+                end
+                PC_dist = zeros(1,Number_of_Processing_Center);
+                demand = Number_of_total_bin;
+                if (any(curr_ratio_pc > 0)) == 1
+                    for pcind = 1:(Number_of_Processing_Center-1)
+                        PC_dist(1,pcind) = round(demand*(curr_ratio_pc(1,pcind)/sum(curr_ratio_pc(1,:))));
+                    end
+                    partial_sum = sum(PC_dist(1,:));
+                    PC_dist(1,Number_of_Processing_Center) = demand - partial_sum;
+                else
+                    rfx = -1*ones(1,Number_of_Processing_Center);
+                    while sum(round(rfx))~= demand
+                        [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                        rfx = round(rfx);
+                    end
+                    PC_dist = rfx; 
+                end
+                rr2 = rand();
+                if rr2 > ranlimit
+                    rfx = -1*ones(1,Number_of_Processing_Center);
+                    while sum(round(rfx))~= demand
+                        [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                        rfx = round(rfx);
+                    end
+                    PC_dist = rfx;
+                end
+                if j == 1
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                            PC_dist(1,l)*Incinator_ratio;
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)))*...
+                            Waste_recovery_ratio(1,j);
+                        
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            PC_dist(1,l)*(1-Incinator_ratio);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+                if j == 2
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            PC_dist(1,l);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+                if j == 3
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            PC_dist(1,l);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+                if j == 4
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                            PC_dist(1,l);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+            end
+        end
+        for i = 1:Number_of_Processing_Center
+            for j = 1:Number_of_Subcenter
+                if sum(Bin_Allocation_on_PC(:,((i-1)*Number_of_Subcenter)+j)) >...
+                        Cap_Mat2(i,j)
+                    feas_pc_dist = 0;
+                    break
+                else
+                    feas_pc_dist = 1;
+                end
+            end
+            if feas_pc_dist == 0
+                break
+            end
+        end
+    end
+    
+    
+    
+    Waste_Allocation_on_DU = zeros(Number_of_Processing_Center,...
+        Number_of_Disposal_Unit);
+    feasible_Waste_Allocation_on_DU = 0;
+    while feasible_Waste_Allocation_on_DU == 0
+        for i = 1:Number_of_Processing_Center
+            Total_amount_of_disposal_waste = 0;
+            for j = 1:Number_of_Subcenter
+                for k = 1:Number_of_Transit_Center
+                    for l = 1:Types_of_Bin
+                        if l == 1||l == 3||l == 4
+                            Total_amount_of_disposal_waste = ...
+                                Total_amount_of_disposal_waste + ...
+                                Waste_Recovery_on_PC((((k-1)*Types_of_Bin)+l),...
+                                (((i-1)*Number_of_Subcenter)+j));
+                        end
+                    end
+                end
+            end
+            DUratiowise_dist_mat = zeros(Number_of_Salp,Number_of_Disposal_Unit);
+            for sind3 = 1:Number_of_Salp
+                for dcind = 1:Number_of_Disposal_Unit
+                    if (sum(Active_Swarm.Salp(sind3).Time_Period(tp_index).Waste_Allocation_on_DU...
+                            (i,:))) == 0
+                        DUratiowise_dist_mat(sind3,dcind) = 0;
+                    else
+                        DUratiowise_dist_mat(sind3,dcind) = ...
+                            (Active_Swarm.Salp(sind3).Time_Period(tp_index).Waste_Allocation_on_DU...
+                            (i,dcind))/(sum(Active_Swarm.Salp(sind3).Time_Period(tp_index).Waste_Allocation_on_DU...
+                            (i,:)));
+                    end
+                end
+            end
+            max_ratio_du = max((max(DUratiowise_dist_mat,[],1)),[],2);
+            min_ratio_du = min((min(DUratiowise_dist_mat,[],1)),[],2);
+            curr_ratio_du = zeros(1,Number_of_Disposal_Unit);
+            Food_du_ratio = zeros(1,Number_of_Disposal_Unit);
+            for dcind = 1:Number_of_Disposal_Unit
+                if (sum(Food_Location.Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,:))) == 0
+                    Food_du_ratio(1,dcind) = 0;
+                else
+                    Food_du_ratio(1,dcind) = ...
+                        (Food_Location.Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,dcind))/(sum(Food_Location.Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,:)));
+                end
+            end
+            for dcind = 1:Number_of_Disposal_Unit
+                batc_infeasible4 = 1;
+                c2 = rand();
+                c3 = -1 + rand()*(1 + 1);
+                candidate_ratio_du = Food_du_ratio(1,dcind);
+                if candidate_ratio_du <= ((c1)*((max_ratio_du-min_ratio_du)*c2_choice + min_ratio_du))
+                    if (any(Food_du_ratio > 0)) == 0 && max_ratio_du == 0 && min_ratio_du == 0
+                        current_ratio_du = 0;
+                    else
+                        current_ratio_du = Food_du_ratio(1,dcind) + ...
+                            (c1)*((max_ratio_du-min_ratio_du)*c2 + min_ratio_du);
+                    end
+                else
+                    if c3 < 0
+                        while batc_infeasible4 == 1
+                            current_ratio_du = Food_du_ratio(1,dcind) - ...
+                                (c1)*((max_ratio_du-min_ratio_du)*c2 + min_ratio_du);
+                            if current_ratio_du > 0
+                                batc_infeasible4 = 0;
+                            else
+                                c2 = rand();
+                            end
+                        end
+                    else
+                        current_ratio_du = Food_du_ratio(1,dcind) + ...
+                            (c1)*((max_ratio_du-min_ratio_du)*c2 + min_ratio_du);
+                    end
+                end
+                curr_ratio_du(1,dcind) = current_ratio_du;
+            end
+            DU_dist = zeros(1,Number_of_Disposal_Unit);
+            demand = Total_amount_of_disposal_waste;
+            if (any(curr_ratio_du > 0)) == 1
+                for dcind = 1:(Number_of_Disposal_Unit-1)
+                    DU_dist(1,dcind) = round(demand*(curr_ratio_du(1,dcind)/sum(curr_ratio_du(1,:))));
+                end
+                partial_sum = sum(DU_dist(1,:));
+                DU_dist(1,Number_of_Disposal_Unit) = demand - partial_sum;
+            else
+                rfx = -1*ones(1,Number_of_Disposal_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                DU_dist = rfx;
+            end
+            rr3 = rand();
+            if rr3 > ranlimit
+                rfx = -1*ones(1,Number_of_Disposal_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                DU_dist = rfx;
+            end
+            Waste_Allocation_on_DU(i,:) = DU_dist;
+        end
+        for wa = 1:Number_of_Disposal_Unit
+            if sum(Waste_Allocation_on_DU(:,wa)) > Cap_Mat3(1,wa)
+                feasible_Waste_Allocation_on_DU = 0;
+                break
+            else
+                feasible_Waste_Allocation_on_DU = 1;
+            end
+        end
+    end
+    
+    
+    Recyclable_Waste_Allocation_on_DU = zeros(Number_of_Processing_Center,...
+        Number_of_Recycling_Unit);
+    feasible_Recyclable_Waste_Allocation_on_DU = 0;
+    while feasible_Recyclable_Waste_Allocation_on_DU == 0
+        for i = 1:Number_of_Processing_Center
+            Total_amount_of_recyclable_waste = 0;
+            for j = 1:Number_of_Subcenter
+                for k = 1:Number_of_Transit_Center
+                    for l = 1:Types_of_Bin
+                        if l == 2
+                            Total_amount_of_recyclable_waste = ...
+                                Total_amount_of_recyclable_waste + ...
+                                Waste_Recovery_on_PC((((k-1)*Types_of_Bin)+l),...
+                                (((i-1)*Number_of_Subcenter)+j));
+                        end
+                    end
+                end
+            end
+            RCratiowise_dist_mat = zeros(Number_of_Salp,Number_of_Recycling_Unit);
+            for sind3 = 1:Number_of_Salp
+                for rcind = 1:Number_of_Recycling_Unit
+                    if (sum(Active_Swarm.Salp(sind3).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                            (i,:))) == 0
+                        RCratiowise_dist_mat(sind3,rcind) = 0;
+                    else
+                        RCratiowise_dist_mat(sind3,rcind) = ...
+                            (Active_Swarm.Salp(sind3).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                            (i,rcind))/(sum(Active_Swarm.Salp(sind3).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                            (i,:)));
+                    end
+                end
+            end
+            max_ratio_rc = max((max(RCratiowise_dist_mat,[],1)),[],2);
+            min_ratio_rc = min((min(RCratiowise_dist_mat,[],1)),[],2);
+            curr_ratio_rc = zeros(1,Number_of_Recycling_Unit);
+            Food_rc_ratio = zeros(1,Number_of_Recycling_Unit);
+            for rcind = 1:Number_of_Recycling_Unit
+                if (sum(Food_Location.Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,:))) == 0
+                    Food_rc_ratio(1,rcind) = 0;
+                else
+                    Food_rc_ratio(1,rcind) = ...
+                        (Food_Location.Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,rcind))/(sum(Food_Location.Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,:)));
+                end
+            end
+            for rcind = 1:Number_of_Recycling_Unit
+                batc_infeasible4 = 1;
+                c2 = rand();
+                c3 = -1 + rand()*(1 + 1);
+                candidate_ratio_rc = Food_rc_ratio(1,rcind);
+                if candidate_ratio_rc <= ((c1)*((max_ratio_rc-min_ratio_rc)*c2_choice + min_ratio_rc))
+                    if (any(Food_rc_ratio > 0)) == 0 && max_ratio_rc == 0 && min_ratio_rc == 0
+                        current_ratio_rc = 0;
+                    else
+                        current_ratio_rc = Food_rc_ratio(1,rcind) + ...
+                            (c1)*((max_ratio_rc-min_ratio_rc)*c2 + min_ratio_rc);
+                    end
+                else
+                    if c3 < 0
+                        while batc_infeasible4 == 1
+                            current_ratio_rc = Food_rc_ratio(1,rcind) - ...
+                                (c1)*((max_ratio_rc-min_ratio_rc)*c2 + min_ratio_rc);
+                            if current_ratio_rc > 0
+                                batc_infeasible4 = 0;
+                            else
+                                c2 = rand();
+                            end
+                        end
+                    else
+                        current_ratio_rc = Food_rc_ratio(1,rcind) + ...
+                            (c1)*((max_ratio_rc-min_ratio_rc)*c2 + min_ratio_rc);
+                    end
+                end
+                curr_ratio_rc(1,rcind) = current_ratio_rc;
+            end
+            RC_dist = zeros(1,Number_of_Recycling_Unit);
+            demand = Total_amount_of_recyclable_waste;
+            if (any(curr_ratio_rc > 0)) == 1
+                for rcind = 1:(Number_of_Recycling_Unit-1)
+                    RC_dist(1,rcind) = round(demand*(curr_ratio_rc(1,rcind)/sum(curr_ratio_rc(1,:))));
+                end
+                partial_sum = sum(RC_dist(1,:));
+                RC_dist(1,Number_of_Recycling_Unit) = demand - partial_sum;
+            else
+                rfx = -1*ones(1,Number_of_Recycling_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                RC_dist = rfx;
+            end
+            rr4 = rand();
+            if rr4 > ranlimit
+                rfx = -1*ones(1,Number_of_Recycling_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                RC_dist = rfx;
+            end
+            Recyclable_Waste_Allocation_on_DU(i,:) = RC_dist;
+        end
+        for rwa = 1:Number_of_Recycling_Unit
+            if sum(Recyclable_Waste_Allocation_on_DU(:,rwa)) > Cap_Mat4(1,rwa)
+                feasible_Recyclable_Waste_Allocation_on_DU = 0;
+                break
+            else
+                feasible_Recyclable_Waste_Allocation_on_DU = 1;
+            end
+        end
+    end
+    Active_Swarm.Salp(1).Time_Period(tp_index).Bin_Allocation_on_TC = Bin_Allocation_on_TC;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Present_Tran_Cent_Inv_Mat = Present_Tran_Cent_Inv_Mat;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC = Bin_Inventory_Adjustment_on_TC;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Bin_Allocation_on_PC = Bin_Allocation_on_PC;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Waste_Allocation_on_PC = Waste_Allocation_on_PC;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Waste_Recovery_on_PC = Waste_Recovery_on_PC;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Waste_Allocation_on_DU = Waste_Allocation_on_DU;
+    Active_Swarm.Salp(1).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU = Recyclable_Waste_Allocation_on_DU;
+    Active_Swarm.Salp(1).Time_Period(tp_index).TrBin_Allocation_on_TC = TrBin_Allocation_on_TC;
+end
+for spindx = 2:Number_of_Salp
+    for tp_index = 1:Time_Period
+        Bin_Allocation_on_TC = zeros((Number_of_Hospital*Types_of_Bin),Number_of_Transit_Center);
+        PseudoBin_Allocation_on_TC = Bin_Allocation_on_TC;
+        Bin_Inventory_Adjustment_on_TC = Bin_Allocation_on_TC;
+        Bin_Allocation_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+            (Number_of_Processing_Center*Number_of_Subcenter));
+        Waste_Allocation_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+            (Number_of_Processing_Center*Number_of_Subcenter));
+        Waste_Recovery_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+            (Number_of_Processing_Center*Number_of_Subcenter));
+        ffound = 0;
+        while ffound == 0
+            for i = 1:Number_of_Hospital
+                for j = 1:Types_of_Bin
+                    curr_ratio = zeros(1,Number_of_Transit_Center);
+                    for crind = 1:Number_of_Transit_Center
+                        if (sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,:))) == 0
+                            current_ratio1 = 0;
+                        else
+                            current_ratio1 = ((Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,crind))/...
+                                (sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,:))));
+                        end
+                        if (sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,:))) == 0
+                            current_ratio2 = 0;
+                        else
+                            current_ratio2 = ((Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,crind))/...
+                                (sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Allocation_on_TC...
+                                (((i-1)*Types_of_Bin)+j,:))));
+                        end
+                        curr_ratio(1,crind) = ((current_ratio1+current_ratio2)/2);
+                    end
+                    TC_dist = zeros(1,Number_of_Transit_Center);
+                    demand = Actual_Demand(i,((tp_index-1)*Types_of_Bin)+j);
+                    if (any(curr_ratio > 0)) == 1
+                        for tcind = 1:(Number_of_Transit_Center-1)
+                            TC_dist(1,tcind) = round(demand*(curr_ratio(1,tcind)/sum(curr_ratio(1,:))));
+                        end
+                        partial_sum = sum(TC_dist(1,:));
+                        TC_dist(1,Number_of_Transit_Center) = demand - partial_sum;
+                    else
+                        rfx = -1*ones(1,Number_of_Transit_Center);
+                        while sum(round(rfx))~= demand
+                            [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                            rfx = round(rfx);
+                        end
+                        TC_dist = rfx;   
+                    end
+                    rr1 = rand();
+                    if rr1 > ranlimit
+                        rfx = -1*ones(1,Number_of_Transit_Center);
+                        while sum(round(rfx))~= demand
+                            [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                            rfx = round(rfx);
+                        end
+                        TC_dist = rfx;   
+                    end
+                    Bin_Allocation_on_TC((((i-1)*Types_of_Bin)+j),:) = TC_dist;
+                end
+            end 
+            for i = 1:Number_of_Transit_Center
+                for j = 1:Types_of_Bin
+                    present_num_of_total_bin = 0;
+                    for k = 1:Number_of_Hospital
+                        present_num_of_total_bin = present_num_of_total_bin +...
+                            Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                    end
+                    if ((present_num_of_total_bin-Cap_Mat1(i,j))+Present_Tran_Cent_Inv_Mat(i,j)) > ...
+                            Tran_Cent_Inv_Cap_Mat(i,j)
+                        ffound = 0;
+                        break
+                    else
+                        ffound = 1;
+                    end
+                end
+                if ffound == 0
+                    break
+                end
+            end
+            if ffound == 1
+                TrBin_Allocation_on_TC = Bin_Allocation_on_TC;
+                for i = 1:Number_of_Transit_Center
+                    for j = 1:Types_of_Bin   
+                        number_of_total_bin = 0;
+                        for k = 1:Number_of_Hospital
+                            number_of_total_bin = number_of_total_bin +...
+                                Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                        end
+                        if (number_of_total_bin-Cap_Mat1(i,j)) > 0
+                            inventoy_adjustment_amount = (number_of_total_bin-Cap_Mat1(i,j));
+                            Sumrfxhd = inventoy_adjustment_amount;
+                            pos_gen = 0;
+                            while pos_gen == 0
+                                curr_dev = zeros(Number_of_Hospital,1);
+                                for hind2 = 1:Number_of_Hospital
+                                    current_dev1 = Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                        (((hind2-1)*Types_of_Bin)+j,i);
+                                    current_dev2 = Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                        (((hind2-1)*Types_of_Bin)+j,i);
+                                    curr_dev(hind2,1) = ((current_dev1+current_dev2)/2);
+                                end
+                                Hdev_dist = zeros(Number_of_Hospital,1);
+                                demand = Sumrfxhd;
+                                if (any(curr_dev > 0)) == 1
+                                    for hdevind = 1:(Number_of_Hospital-1)
+                                        Hdev_dist(hdevind,1) = round(demand*(curr_dev(hdevind,1)/sum(curr_dev(:,1))));
+                                    end
+                                    partial_sum = sum(Hdev_dist(:,1));
+                                    Hdev_dist(Number_of_Hospital,1) = demand - partial_sum;
+                                else
+                                    rfx = -1*ones(Number_of_Hospital,1);
+                                    while sum(round(rfx))~= demand
+                                        [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                        rfx = round(rfx);
+                                    end
+                                    Hdev_dist = rfx;
+                                end
+                                rr = rand();
+                                if rr > ranlimit
+                                    rfx = -1*ones(Number_of_Hospital,1);
+                                    while sum(round(rfx))~= demand
+                                        [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                        rfx = round(rfx);
+                                    end
+                                    Hdev_dist = rfx;
+                                end
+                                for k = 1:Number_of_Hospital
+                                    PseudoBin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) =...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) - Hdev_dist(k,1);
+                                    if PseudoBin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) < 0
+                                        pos_gen = 0;
+                                        break
+                                    else
+                                        pos_gen = 1;
+                                    end
+                                end
+                                if pos_gen == 1
+                                    for k = 1:Number_of_Hospital
+                                        Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = Hdev_dist(k,1);
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                            Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) - Hdev_dist(k,1);
+                                    end
+                                end
+                            end
+                            Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) + ...
+                                inventoy_adjustment_amount;
+                        elseif (Cap_Mat1(i,j)-number_of_total_bin) > 0
+                            if Present_Tran_Cent_Inv_Mat(i,j) > 0
+                                if (Cap_Mat1(i,j)-number_of_total_bin) > ...
+                                        Present_Tran_Cent_Inv_Mat(i,j)
+                                    inventoy_adjustment_amount = Present_Tran_Cent_Inv_Mat(i,j);
+                                    Sumrfxhd = inventoy_adjustment_amount;
+                                    curr_dev = zeros(Number_of_Hospital,1);
+                                    for hind2 = 1:Number_of_Hospital
+                                        current_dev1 = Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i);
+                                        current_dev2 = Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i);
+                                        curr_dev(hind2,1) = ((current_dev1+current_dev2)/2);
+                                    end
+                                    Hdev_dist = zeros(Number_of_Hospital,1);
+                                    demand = Sumrfxhd;
+                                    if (any(curr_dev > 0)) == 1
+                                        for hdevind = 1:(Number_of_Hospital-1)
+                                            Hdev_dist(hdevind,1) = round(demand*(curr_dev(hdevind,1)/sum(curr_dev(:,1))));
+                                        end
+                                        partial_sum = sum(Hdev_dist(:,1));
+                                        Hdev_dist(Number_of_Hospital,1) = demand - partial_sum;
+                                    else
+                                        rfx = -1*ones(Number_of_Hospital,1);
+                                        while sum(round(rfx))~= demand
+                                            [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                            rfx = round(rfx);
+                                        end
+                                        Hdev_dist = rfx;
+                                    end
+                                    rr = rand();
+                                    if rr > ranlimit
+                                        rfx = -1*ones(Number_of_Hospital,1);
+                                        while sum(round(rfx))~= demand
+                                            [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                            rfx = round(rfx);
+                                        end
+                                        Hdev_dist = rfx;
+                                    end
+                                    for k = 1:Number_of_Hospital
+                                        Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = Hdev_dist(k,1);
+                                        
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                            Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) + Hdev_dist(k,1);
+                                    end
+                                    Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) - ...
+                                        inventoy_adjustment_amount;
+                                elseif Present_Tran_Cent_Inv_Mat(i,j) > ...
+                                        (Cap_Mat1(i,j)-number_of_total_bin)
+                                    inventoy_adjustment_amount = (Cap_Mat1(i,j)-number_of_total_bin);
+                                    Sumrfxhd = inventoy_adjustment_amount;
+                                    curr_dev = zeros(Number_of_Hospital,1);
+                                    for hind2 = 1:Number_of_Hospital
+                                        current_dev1 = Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i);
+                                        current_dev2 = Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC...
+                                            (((hind2-1)*Types_of_Bin)+j,i);
+                                        curr_dev(hind2,1) = ((current_dev1+current_dev2)/2);
+                                    end
+                                    Hdev_dist = zeros(Number_of_Hospital,1);
+                                    demand = Sumrfxhd;
+                                    if (any(curr_dev > 0)) == 1
+                                        for hdevind = 1:(Number_of_Hospital-1)
+                                            Hdev_dist(hdevind,1) = round(demand*(curr_dev(hdevind,1)/sum(curr_dev(:,1))));
+                                        end
+                                        partial_sum = sum(Hdev_dist(:,1));
+                                        Hdev_dist(Number_of_Hospital,1) = demand - partial_sum;
+                                    else
+                                        rfx = -1*ones(Number_of_Hospital,1);
+                                        while sum(round(rfx))~= demand
+                                            [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                            rfx = round(rfx);
+                                        end
+                                        Hdev_dist = rfx;
+                                    end
+                                    rr = rand();
+                                    if rr > ranlimit
+                                        rfx = -1*ones(Number_of_Hospital,1);
+                                        while sum(round(rfx))~= demand
+                                            [rfx,~] = (randfixedsum(size(rfx,1),1,demand,0,demand+1));
+                                            rfx = round(rfx);
+                                        end
+                                        Hdev_dist = rfx;
+                                    end
+                                    for k = 1:Number_of_Hospital
+                                        Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = Hdev_dist(k,1);
+                                        
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                            Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) + Hdev_dist(k,1);
+                                    end
+                                    Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) - ...
+                                        inventoy_adjustment_amount;
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        feas_pc_dist = 0;
+        while feas_pc_dist == 0
+            for i = 1:Number_of_Transit_Center
+                for j = 1:Types_of_Bin
+                    Number_of_total_bin = 0;
+                    for k = 1:Number_of_Hospital
+                        Number_of_total_bin = Number_of_total_bin + Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                    end
+                    Firstswarm_pc_dist = zeros(1,Number_of_Processing_Center);
+                    Firstswarm_pc_ratio = zeros(1,Number_of_Processing_Center);
+                    Secondswarm_pc_dist = zeros(1,Number_of_Processing_Center);
+                    Secondswarm_pc_ratio = zeros(1,Number_of_Processing_Center);
+                    for pcind = 1:Number_of_Processing_Center
+                        trns_amnt_on_pcfd1 = sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Bin_Allocation_on_PC...
+                            (((i-1)*Types_of_Bin)+j,...
+                            (((pcind-1)*Number_of_Subcenter)+1:(pcind*Number_of_Subcenter)))); 
+                        trns_amnt_on_pcfd2 = sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Allocation_on_PC...
+                            (((i-1)*Types_of_Bin)+j,...
+                            (((pcind-1)*Number_of_Subcenter)+1:(pcind*Number_of_Subcenter))));
+                        Firstswarm_pc_dist(1,pcind) = trns_amnt_on_pcfd1;
+                        Secondswarm_pc_dist(1,pcind) = trns_amnt_on_pcfd2;
+                    end
+                    for pcind = 1:Number_of_Processing_Center
+                        if (any(Firstswarm_pc_dist > 0)) == 0
+                            Firstswarm_pc_ratio(1,pcind) = 0;
+                        else
+                            Firstswarm_pc_ratio(1,pcind) = ...
+                                (Firstswarm_pc_dist(1,pcind))/(sum(Firstswarm_pc_dist(1,:)));
+                        end
+                        if (any(Secondswarm_pc_dist > 0)) == 0
+                            Secondswarm_pc_ratio(1,pcind) = 0;
+                        else
+                            Secondswarm_pc_ratio(1,pcind) = ...
+                                (Secondswarm_pc_dist(1,pcind))/(sum(Secondswarm_pc_dist(1,:)));
+                        end   
+                    end
+                    curr_ratio_pc = ((Firstswarm_pc_ratio+Secondswarm_pc_ratio)/2);
+                    PC_dist = zeros(1,Number_of_Processing_Center);
+                    demand = Number_of_total_bin;
+                    if (any(curr_ratio_pc > 0)) == 1
+                        for pcind = 1:(Number_of_Processing_Center-1)
+                            PC_dist(1,pcind) = round(demand*(curr_ratio_pc(1,pcind)/sum(curr_ratio_pc(1,:))));
+                        end
+                        partial_sum = sum(PC_dist(1,:));
+                        PC_dist(1,Number_of_Processing_Center) = demand - partial_sum;
+                    else
+                        rfx = -1*ones(1,Number_of_Processing_Center);
+                        while sum(round(rfx))~= demand
+                            [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                            rfx = round(rfx);
+                        end
+                        PC_dist = rfx;  
+                    end
+                    rr2 = rand();
+                    if rr2 > ranlimit
+                        rfx = -1*ones(1,Number_of_Processing_Center);
+                        while sum(round(rfx))~= demand
+                            [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                            rfx = round(rfx);
+                        end
+                        PC_dist = rfx;
+                    end
+                    if j == 1
+                        for l = 1:Number_of_Processing_Center
+                            Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                                PC_dist(1,l)*Incinator_ratio;
+                            Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                                (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)))*...
+                                Waste_weight_ratio(1,j);
+                            Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                                (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)))*...
+                                Waste_recovery_ratio(1,j);
+                            
+                            Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                PC_dist(1,l)*(1-Incinator_ratio);
+                            Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                                Waste_weight_ratio(1,j);
+                            Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                                Waste_recovery_ratio(1,j);
+                        end
+                    end
+                    if j == 2
+                        for l = 1:Number_of_Processing_Center
+                            Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                PC_dist(1,l);
+                            Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                                Waste_weight_ratio(1,j);
+                            Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                                Waste_recovery_ratio(1,j);
+                        end
+                    end
+                    if j == 3
+                        for l = 1:Number_of_Processing_Center
+                            Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                PC_dist(1,l);
+                            Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                                Waste_weight_ratio(1,j);
+                            Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                                (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                                Waste_recovery_ratio(1,j);
+                        end
+                    end
+                    if j == 4
+                        for l = 1:Number_of_Processing_Center
+                            Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                                PC_dist(1,l);
+                            Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                                (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)))*...
+                                Waste_weight_ratio(1,j);
+                            Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                                (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)))*...
+                                Waste_recovery_ratio(1,j);
+                        end
+                    end
+                end
+            end
+            for i = 1:Number_of_Processing_Center
+                for j = 1:Number_of_Subcenter
+                    if sum(Bin_Allocation_on_PC(:,((i-1)*Number_of_Subcenter)+j)) >...
+                            Cap_Mat2(i,j)
+                        feas_pc_dist = 0;
+                        break
+                    else
+                        feas_pc_dist = 1;
+                    end
+                end
+                if feas_pc_dist == 0
+                    break
+                end
+            end
+        end
+        Waste_Allocation_on_DU = zeros(Number_of_Processing_Center,...
+            Number_of_Disposal_Unit);
+        for i = 1:Number_of_Processing_Center
+            Total_amount_of_disposal_waste = 0;
+            for j = 1:Number_of_Subcenter
+                for k = 1:Number_of_Transit_Center
+                    for l = 1:Types_of_Bin
+                        if l == 1||l == 3||l == 4
+                            Total_amount_of_disposal_waste = ...
+                                Total_amount_of_disposal_waste + ...
+                                Waste_Recovery_on_PC((((k-1)*Types_of_Bin)+l),...
+                                (((i-1)*Number_of_Subcenter)+j));
+                        end
+                    end
+                end
+            end
+            Firstswarm_du_ratio = zeros(1,Number_of_Disposal_Unit);
+            Secondswarm_du_ratio = zeros(1,Number_of_Disposal_Unit);
+            for dcind = 1:Number_of_Disposal_Unit
+                if (sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,:))) == 0
+                    Firstswarm_du_ratio(1,dcind) = 0;
+                else
+                    Firstswarm_du_ratio(1,dcind) = ...
+                        (Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,dcind))/(sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,:)));
+                end
+                if (sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,:))) == 0
+                    Secondswarm_du_ratio(1,dcind) = 0;
+                else
+                    Secondswarm_du_ratio(1,dcind) = ...
+                        (Active_Swarm.Salp(spindx).Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,dcind))/(sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Waste_Allocation_on_DU...
+                        (i,:)));
+                end
+            end
+            curr_ratio_du = ((Firstswarm_du_ratio+Secondswarm_du_ratio)/2);
+            DU_dist = zeros(1,Number_of_Disposal_Unit);
+            demand = Total_amount_of_disposal_waste;
+            if (any(curr_ratio_du > 0)) == 1
+                for dcind = 1:(Number_of_Disposal_Unit-1)
+                    DU_dist(1,dcind) = round(demand*(curr_ratio_du(1,dcind)/sum(curr_ratio_du(1,:))));
+                end
+                partial_sum = sum(DU_dist(1,:));
+                DU_dist(1,Number_of_Disposal_Unit) = demand - partial_sum;
+            else
+                rfx = -1*ones(1,Number_of_Disposal_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                DU_dist = rfx;   
+            end
+            rr3 = rand();
+            if rr3 > ranlimit
+                rfx = -1*ones(1,Number_of_Disposal_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                DU_dist = rfx;
+            end
+            Waste_Allocation_on_DU(i,:) = DU_dist;
+        end
+        Recyclable_Waste_Allocation_on_DU = zeros(Number_of_Processing_Center,...
+            Number_of_Recycling_Unit);
+        for i = 1:Number_of_Processing_Center
+            Total_amount_of_recyclable_waste = 0;
+            for j = 1:Number_of_Subcenter
+                for k = 1:Number_of_Transit_Center
+                    for l = 1:Types_of_Bin
+                        if l == 2
+                            Total_amount_of_recyclable_waste = ...
+                                Total_amount_of_recyclable_waste + ...
+                                Waste_Recovery_on_PC((((k-1)*Types_of_Bin)+l),...
+                                (((i-1)*Number_of_Subcenter)+j));
+                        end
+                    end
+                end
+            end   
+            Firstswarm_rc_ratio = zeros(1,Number_of_Recycling_Unit);
+            Secondswarm_rc_ratio = zeros(1,Number_of_Recycling_Unit);
+            for rcind = 1:Number_of_Recycling_Unit
+                if (sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,:))) == 0
+                    Firstswarm_rc_ratio(1,rcind) = 0;
+                else
+                    Firstswarm_rc_ratio(1,rcind) = ...
+                        (Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,rcind))/(sum(Active_Swarm.Salp(spindx-1).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,:)));
+                end
+                if (sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,:))) == 0
+                    Secondswarm_rc_ratio(1,rcind) = 0;
+                else
+                    Secondswarm_rc_ratio(1,rcind) = ...
+                        (Active_Swarm.Salp(spindx).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,rcind))/(sum(Active_Swarm.Salp(spindx).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU...
+                        (i,:)));
+                end
+            end
+            curr_ratio_rc = ((Firstswarm_rc_ratio+Secondswarm_rc_ratio)/2);
+            RC_dist = zeros(1,Number_of_Recycling_Unit);
+            demand = Total_amount_of_recyclable_waste;
+            if (any(curr_ratio_rc > 0)) == 1
+                for rcind = 1:(Number_of_Recycling_Unit-1)
+                    RC_dist(1,rcind) = round(demand*(curr_ratio_rc(1,rcind)/sum(curr_ratio_rc(1,:))));
+                end
+                partial_sum = sum(RC_dist(1,:));
+                RC_dist(1,Number_of_Recycling_Unit) = demand - partial_sum;
+            else
+                rfx = -1*ones(1,Number_of_Recycling_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                RC_dist = rfx;  
+            end
+            rr4 = rand();
+            if rr4 > ranlimit
+                rfx = -1*ones(1,Number_of_Recycling_Unit);
+                while sum(round(rfx))~= demand
+                    [rfx] = transpose(randfixedsum(size(rfx,2),1,demand,0,demand+1));
+                    rfx = round(rfx);
+                end
+                RC_dist = rfx; 
+            end
+            Recyclable_Waste_Allocation_on_DU(i,:) = RC_dist;
+        end
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Allocation_on_TC = Bin_Allocation_on_TC;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Present_Tran_Cent_Inv_Mat = Present_Tran_Cent_Inv_Mat;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC = Bin_Inventory_Adjustment_on_TC;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Bin_Allocation_on_PC = Bin_Allocation_on_PC;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Waste_Allocation_on_PC = Waste_Allocation_on_PC;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Waste_Recovery_on_PC = Waste_Recovery_on_PC;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Waste_Allocation_on_DU = Waste_Allocation_on_DU;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU = Recyclable_Waste_Allocation_on_DU;
+        Active_Swarm.Salp(spindx).Time_Period(tp_index).TrBin_Allocation_on_TC = TrBin_Allocation_on_TC;
+    end   
+end
+for sin = 1:Number_of_Salp
+    Active_Swarm.Salp(sin).Fitness = fobj_Fitness(Active_Swarm.Salp(sin));
+end
+updated_SSA_swarm = Active_Swarm;
+end
