@@ -1,0 +1,9 @@
+function [x,v] = randnumgen(n,m,s,a,b)
+[rfx,vfx] = randfixedsum(n,m,s,a,b);
+pl = (10/100);
+while std(rfx) >= (pl*s)
+    [rfx,vfx] = randfixedsum(n,m,s,a,b);
+end
+x = rfx;
+v = vfx;
+end
