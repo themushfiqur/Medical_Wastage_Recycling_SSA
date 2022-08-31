@@ -1,0 +1,3 @@
+function[o] = RL_Dominates(x,y)
+o = all(x<=y) && any(x<y);
+end
