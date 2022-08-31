@@ -1,0 +1,314 @@
+function [Salp] = RL_Salp_Generation()
+Number_of_Hospital = 3;
+Number_of_Transit_Center = 2;
+Number_of_Processing_Center = 2;
+Number_of_Subcenter = 3;
+Number_of_Disposal_Unit = 1;
+Number_of_Recycling_Unit = 1;
+Types_of_Bin = 4;
+Cap_Mat1 = [1250,1250,1250,1250;1150,1150,1150,1150];
+Cap_Mat2 = [3000,3000,2500;3800,3200,2800];
+Cap_Mat3 = [1000000];
+Cap_Mat4 = [1000000];
+Tran_Cent_Inv_Cap_Mat = [500,500,500,500;500,500,500,500];
+Present_Tran_Cent_Inv_Mat = [0,0,0,0;0,0,0,0];
+Incinator_ratio = 0.5;
+Waste_weight_ratio = [60,60,60,60];
+Waste_recovery_ratio = [0.75,0.75,0.75,0.75];
+Time_Period = 10;
+Actual_Demand = 450*ones(Number_of_Hospital,(Types_of_Bin*Time_Period));
+randfixedsum = @randnumgen;
+for tp_index = 1:Time_Period
+    Bin_Allocation_on_TC = zeros((Number_of_Hospital*Types_of_Bin),Number_of_Transit_Center);
+    PseudoBin_Allocation_on_TC = Bin_Allocation_on_TC;
+    Bin_Inventory_Adjustment_on_TC = Bin_Allocation_on_TC;
+    Bin_Allocation_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+        (Number_of_Processing_Center*Number_of_Subcenter));
+    Waste_Allocation_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+        (Number_of_Processing_Center*Number_of_Subcenter));
+    Waste_Recovery_on_PC = zeros((Number_of_Transit_Center*Types_of_Bin),...
+        (Number_of_Processing_Center*Number_of_Subcenter)); 
+    ffound = 0;
+    while ffound == 0
+        for i = 1:Number_of_Hospital
+            for j = 1:Types_of_Bin
+                rfx = zeros(Number_of_Transit_Center,1);
+                Sumrfx = Actual_Demand(i,((tp_index-1)*Types_of_Bin)+j);
+                while sum(round(rfx))~= Sumrfx
+                    [rfx,~] = randfixedsum(Number_of_Transit_Center,1,Sumrfx,0,Sumrfx);
+                    rfx = round(rfx);
+                end
+                Bin_Allocation_on_TC((((i-1)*Types_of_Bin)+j),:) = transpose(rfx);
+            end
+        end
+        for i = 1:Number_of_Transit_Center
+            for j = 1:Types_of_Bin
+                present_num_of_total_bin = 0;
+                for k = 1:Number_of_Hospital
+                    present_num_of_total_bin = present_num_of_total_bin +...
+                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                end
+                if ((present_num_of_total_bin-Cap_Mat1(i,j))+Present_Tran_Cent_Inv_Mat(i,j)) > ...
+                        Tran_Cent_Inv_Cap_Mat(i,j)
+                    ffound = 0;
+                    break
+                else
+                    ffound = 1;
+                end
+            end
+            if ffound == 0
+                break
+            end
+        end
+        if ffound == 1
+            TrBin_Allocation_on_TC = Bin_Allocation_on_TC;
+            for i = 1:Number_of_Transit_Center
+                for j = 1:Types_of_Bin
+                    number_of_total_bin = 0;
+                    for k = 1:Number_of_Hospital
+                        number_of_total_bin = number_of_total_bin +...
+                            Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                    end
+                    if (number_of_total_bin-Cap_Mat1(i,j)) > 0
+                        inventoy_adjustment_amount = (number_of_total_bin-Cap_Mat1(i,j));
+                        Sumrfx = inventoy_adjustment_amount;
+                        pos_gen = 0;
+                        while pos_gen == 0
+                            rfx = zeros(Number_of_Hospital,1);
+                            while sum(round(rfx))~= Sumrfx
+                                [rfx,~] = randfixedsum(size(rfx,1),1,Sumrfx,0,Sumrfx);
+                                rfx = round(rfx);
+                            end
+                            for k = 1:Number_of_Hospital
+                                PseudoBin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) =...
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) - rfx(k,1);
+                                if PseudoBin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) < 0
+                                    pos_gen = 0;
+                                    break
+                                else
+                                    pos_gen = 1;
+                                end
+                            end
+                            if pos_gen == 1
+                                for k = 1:Number_of_Hospital
+                                    Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = rfx(k,1);
+                                    
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) - rfx(k,1);
+                                end
+                            end
+                        end
+                        Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) + ...
+                            inventoy_adjustment_amount;  
+                    elseif (Cap_Mat1(i,j)-number_of_total_bin) > 0
+                        if Present_Tran_Cent_Inv_Mat(i,j) > 0
+                            if (Cap_Mat1(i,j)-number_of_total_bin) > ...
+                                    Present_Tran_Cent_Inv_Mat(i,j)
+                                inventoy_adjustment_amount = Present_Tran_Cent_Inv_Mat(i,j);
+                                rfx = zeros(Number_of_Hospital,1);
+                                Sumrfx = inventoy_adjustment_amount;
+                                while sum(round(rfx))~= Sumrfx
+                                    [rfx,~] = randfixedsum(size(rfx,1),1,Sumrfx,0,Sumrfx);
+                                    rfx = round(rfx);
+                                end
+                                for k = 1:Number_of_Hospital
+                                    Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = rfx(k,1);
+                                    
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) + rfx(k,1);
+                                end
+                                Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) - ...
+                                    inventoy_adjustment_amount;
+                            elseif Present_Tran_Cent_Inv_Mat(i,j) > ...
+                                    (Cap_Mat1(i,j)-number_of_total_bin)
+                                inventoy_adjustment_amount = (Cap_Mat1(i,j)-number_of_total_bin);
+                                rfx = zeros(Number_of_Hospital,1);
+                                Sumrfx = inventoy_adjustment_amount;
+                                while sum(round(rfx))~= Sumrfx
+                                    [rfx,~] = randfixedsum(size(rfx,1),1,Sumrfx,0,Sumrfx);
+                                    rfx = round(rfx);
+                                end
+                                for k = 1:Number_of_Hospital
+                                    Bin_Inventory_Adjustment_on_TC((((k-1)*Types_of_Bin)+j),i) = rfx(k,1);
+                                    
+                                    Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) = ...
+                                        Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i) + rfx(k,1);
+                                end
+                                Present_Tran_Cent_Inv_Mat(i,j) = Present_Tran_Cent_Inv_Mat(i,j) - ...
+                                    inventoy_adjustment_amount;
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    feas_pc_dist = 0;
+    while feas_pc_dist == 0
+        for i = 1:Number_of_Transit_Center
+            for j = 1:Types_of_Bin
+                Number_of_total_bin = 0;
+                for k = 1:Number_of_Hospital
+                    Number_of_total_bin = Number_of_total_bin + Bin_Allocation_on_TC((((k-1)*Types_of_Bin)+j),i);
+                end
+                rfx = zeros(Number_of_Processing_Center,1);
+                Sumrfx = Number_of_total_bin;
+                while sum(round(rfx))~= Sumrfx
+                    [rfx,~] = randfixedsum(Number_of_Processing_Center,1,Sumrfx,0,Sumrfx);
+                    rfx = round(rfx);
+                end
+                if j == 1
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                            rfx(l,1)*Incinator_ratio;
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+1)))*...
+                            Waste_recovery_ratio(1,j);
+                        
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            rfx(l,1)*(1-Incinator_ratio);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+                if j == 2
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            rfx(l,1);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+                if j == 3
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            rfx(l,1);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+2)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+                if j == 4
+                    for l = 1:Number_of_Processing_Center
+                        Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                            rfx(l,1);
+                        Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                            (Bin_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)))*...
+                            Waste_weight_ratio(1,j);
+                        Waste_Recovery_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)) = ...
+                            (Waste_Allocation_on_PC((((i-1)*Types_of_Bin)+j),(((l-1)*Number_of_Subcenter)+3)))*...
+                            Waste_recovery_ratio(1,j);
+                    end
+                end
+            end
+        end
+        for i = 1:Number_of_Processing_Center
+            for j = 1:Number_of_Subcenter
+                if sum(Bin_Allocation_on_PC(:,((i-1)*Number_of_Subcenter)+j)) >...
+                        Cap_Mat2(i,j)
+                    feas_pc_dist = 0;
+                    break
+                else
+                    feas_pc_dist = 1;
+                end
+            end
+            if feas_pc_dist == 0
+                break
+            end
+        end
+    end
+    Waste_Allocation_on_DU = zeros(Number_of_Processing_Center,...
+        Number_of_Disposal_Unit);
+    feasible_Waste_Allocation_on_DU = 0;
+    while feasible_Waste_Allocation_on_DU == 0
+        for i = 1:Number_of_Processing_Center
+            Total_amount_of_disposal_waste = 0;
+            for j = 1:Number_of_Subcenter
+                for k = 1:Number_of_Transit_Center
+                    for l = 1:Types_of_Bin
+                        if l == 1||l == 3||l == 4
+                            Total_amount_of_disposal_waste = ...
+                                Total_amount_of_disposal_waste + ...
+                                Waste_Recovery_on_PC((((k-1)*Types_of_Bin)+l),...
+                                (((i-1)*Number_of_Subcenter)+j));
+                        end
+                    end
+                end
+            end
+            rfx = zeros(size(Waste_Allocation_on_DU,2),1);
+            Sumrfx = Total_amount_of_disposal_waste;
+            while sum(round(rfx))~= Sumrfx
+                [rfx,~] = randfixedsum(size(Waste_Allocation_on_DU,2),1,Sumrfx,0,Sumrfx);
+                rfx = round(rfx);
+            end
+            Waste_Allocation_on_DU(i,:) = transpose(rfx);
+        end
+        for wa = 1:Number_of_Disposal_Unit
+            if sum(Waste_Allocation_on_DU(:,wa)) > Cap_Mat3(1,wa)
+                feasible_Waste_Allocation_on_DU = 0;
+                break
+            else
+                feasible_Waste_Allocation_on_DU = 1;
+            end
+        end
+    end
+    Recyclable_Waste_Allocation_on_DU = zeros(Number_of_Processing_Center,...
+        Number_of_Recycling_Unit);
+    feasible_Recyclable_Waste_Allocation_on_DU = 0;
+    while feasible_Recyclable_Waste_Allocation_on_DU == 0
+        for i = 1:Number_of_Processing_Center
+            Total_amount_of_recyclable_waste = 0;
+            for j = 1:Number_of_Subcenter
+                for k = 1:Number_of_Transit_Center
+                    for l = 1:Types_of_Bin
+                        if l == 2
+                            Total_amount_of_recyclable_waste = ...
+                                Total_amount_of_recyclable_waste + ...
+                                Waste_Recovery_on_PC((((k-1)*Types_of_Bin)+l),...
+                                (((i-1)*Number_of_Subcenter)+j));
+                        end
+                    end
+                end
+            end
+            rfx = zeros(size(Recyclable_Waste_Allocation_on_DU,2),1);
+            Sumrfx = Total_amount_of_recyclable_waste;
+            while sum(round(rfx))~= Sumrfx
+                [rfx,~] = randfixedsum(size(Recyclable_Waste_Allocation_on_DU,2),1,Sumrfx,0,Sumrfx);
+                rfx = round(rfx);
+            end
+            Recyclable_Waste_Allocation_on_DU(i,:) = transpose(rfx);
+        end
+        for rwa = 1:Number_of_Recycling_Unit
+            if sum(Recyclable_Waste_Allocation_on_DU(:,rwa)) > Cap_Mat4(1,rwa)
+                feasible_Recyclable_Waste_Allocation_on_DU = 0;
+                break
+            else
+                feasible_Recyclable_Waste_Allocation_on_DU = 1;
+            end
+        end
+    end
+    Salp.Time_Period(tp_index).Bin_Allocation_on_TC = Bin_Allocation_on_TC;
+    Salp.Time_Period(tp_index).Present_Tran_Cent_Inv_Mat = Present_Tran_Cent_Inv_Mat;
+    Salp.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC = Bin_Inventory_Adjustment_on_TC;
+    Salp.Time_Period(tp_index).Bin_Allocation_on_PC = Bin_Allocation_on_PC;
+    Salp.Time_Period(tp_index).Waste_Allocation_on_PC = Waste_Allocation_on_PC;
+    Salp.Time_Period(tp_index).Waste_Recovery_on_PC = Waste_Recovery_on_PC;
+    Salp.Time_Period(tp_index).Waste_Allocation_on_DU = Waste_Allocation_on_DU;
+    Salp.Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU = Recyclable_Waste_Allocation_on_DU;
+    Salp.Time_Period(tp_index).TrBin_Allocation_on_TC = TrBin_Allocation_on_TC;
+end
+end
