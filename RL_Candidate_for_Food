@@ -1,0 +1,18 @@
+function[cff] = RL_Candidate_for_Food(Active_Swarm,Number_of_Objectives,Number_of_Salp)
+frac_f = zeros(1,Number_of_Objectives);
+fweight = [0.5];
+f_store_mat = zeros(1,Number_of_Salp);
+Active_Swarm_Fitness_Mat = zeros(1,Number_of_Salp);
+for apfm = 1:Number_of_Salp
+    for fracfind = 1:Number_of_Objectives
+        for findind = 1:Number_of_Salp
+            f_store_mat(1,findind) = Active_Swarm.Salp(findind).Fitness(fracfind);
+        end
+        running_f = Active_Swarm.Salp(apfm).Fitness(fracfind);
+        frac_f(1,fracfind) = (running_f)/(max(f_store_mat,[],2));
+    end
+    Active_Swarm_Fitness_Mat(1,apfm) = sum(fweight.*frac_f);
+end
+[~, apfmsi] = sort(Active_Swarm_Fitness_Mat,'ascend');
+cff = Active_Swarm.Salp(apfmsi(1));
+end
