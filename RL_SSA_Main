@@ -1,0 +1,244 @@
+%% Model Parameter
+Number_of_Hospital = 3; %% Number of Hospital
+Number_of_Transit_Center = 2; %% Number of Transit center
+Number_of_Processing_Center = 2;  %% Number of Processing Center
+Number_of_Subcenter = 3; %% Number of Sub-Processing Center
+Number_of_Disposal_Unit = 1;  %% Number of Disposal Unit
+Number_of_Recycling_Unit = 1;  %% Number of Recycling Unit
+Types_of_Bin = 4;  %% Types of Bin
+D_Mat1 = [100,120;110,90;130,100];  %% Distance from Hospital to Transit Center
+D_Mat2 = [300,280;290,320];  %% Distance from Transit Center to Processing Center 
+D_Mat3 = [280;320];  %% Distance from Processing Center to Disposal Center
+D_Mat4 = [250;290];  %% Distance from Processing Center to Recycling Center
+Cap_Mat1 = [1250,1250,1250,1250;1150,1150,1150,1150];  %% Capacity of Transit Center
+Cap_Mat2 = [3000,3000,2500;3800,3200,2800];  %% Capacity of Processing Center
+Cap_Mat3 = [1000000];  %% Capacity of Disposal Center
+Cap_Mat4 = [1000000];  %% Capacity of Recycling Center
+Type1VehicCap = 50;  %% Transportation Capacity Applicable for Hospital to Processing Center
+Type2VehicCap = 500;  %% Transportation Capacity Applicable for Processing Center to Disposal/Recycling Center 
+Fuel_Combustion_Cost = 1.5;  %% Fuel Cost
+FixC_Mat1 = [80,100;100,90;100,100];  %% Fixed Transportation Cost for Hospital to Transit Center
+FixC_Mat2 = [200,180;190,220];  %% Fixed Transportation Cost for Transit Center to Processing Center
+FixC_Mat3 = [300;290];  %% Fixed Transportation Cost for Processing Center to Disposal Center
+FixC_Mat4 = [240;170];  %% Fixed Transportation Cost for Processing Center to Recycling Center
+VarC_Mat1 = [1.8,1;1.2,1;1.5,1.2];  %% Variable Transportation Cost for Hospital to Transit Center
+VarC_Mat2 = [2,1.8;1.9,2.2];  %% Variable Transportation Cost for Transit Center to Processing Center
+VarC_Mat3 = [1.5;1.4];  %% Variable Transportation Cost for Processing Center to Disposal Center
+VarC_Mat4 = [1.4;1.3];  %% Variable Transportation Cost for Processing Center to Recycling Center
+Tran_Cent_Inv_Cap_Mat = [500,500,500,500;500,500,500,500];  %% Inventory Capacity of Transit Center
+Present_Tran_Cent_Inv_Mat = [0,0,0,0;0,0,0,0];  %% Present Inventory of Transit Center
+Inv_Cost = [2.3,2.3,2.3,2.3];  %% Inventory Cost
+Disposing_cost = 10;  %% Disposing Cost
+Recycling_cost = 12;  %% Recycling Cost
+Recycling_revenue = 20;  %% Recycling Revenue
+Incinator_ratio = 0.5;  %% Percentage of Yellow Bin Referred to Incinator
+Waste_weight_ratio = [60,60,60,60];  %% Conversion Factor of Bin to Weight
+Waste_recovery_ratio = [0.75,0.75,0.75,0.75];  %% Waste Recovery Ratio
+Waste_processing_cost = [5,5,5;5,5,5];  %% Waste Processing Cost
+scr = Number_of_Hospital*Number_of_Transit_Center;
+tcr = Number_of_Transit_Center*Number_of_Processing_Center*Number_of_Subcenter;
+fcr = Number_of_Processing_Center*Number_of_Disposal_Unit;
+ficr = Number_of_Processing_Center*Number_of_Recycling_Unit;
+Time_Period = 10;
+Actual_Demand = 450*ones(Number_of_Hospital,(Types_of_Bin*Time_Period));
+%% SSA Parameter
+Iteration_number = 100;
+Number_of_Salp = 20;
+Number_of_Objectives = 1;
+%% SSA Function
+randfixedsum = @randnumgen;
+Salp_Gen = @RL_Salp_Generation;
+fobj_Fitness = @RL_Fitness_Value;
+SSA_Swarm = @RL_SSA_Swarm_Creation;
+CFF = @RL_Candidate_for_Food;
+Dominates = @RL_Dominates;
+%% Creating Initial SSA Swarm
+for i = 1:Number_of_Salp
+    temp_salp = Salp_Gen();
+    temp_fitness = fobj_Fitness(temp_salp);
+    for tp_index = 1:Time_Period
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Bin_Allocation_on_TC = ...
+            temp_salp.Time_Period(tp_index).Bin_Allocation_on_TC;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Present_Tran_Cent_Inv_Mat = ...
+            temp_salp.Time_Period(tp_index).Present_Tran_Cent_Inv_Mat;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC = ...
+            temp_salp.Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Bin_Allocation_on_PC = ...
+            temp_salp.Time_Period(tp_index).Bin_Allocation_on_PC;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Waste_Allocation_on_PC = ...
+            temp_salp.Time_Period(tp_index).Waste_Allocation_on_PC;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Waste_Recovery_on_PC = ...
+            temp_salp.Time_Period(tp_index).Waste_Recovery_on_PC;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Waste_Allocation_on_DU = ...
+            temp_salp.Time_Period(tp_index).Waste_Allocation_on_DU;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU = ...
+            temp_salp.Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU;
+        Initial_Swarm.Salp(i).Time_Period(tp_index).TrBin_Allocation_on_TC = ...
+            temp_salp.Time_Period(tp_index).TrBin_Allocation_on_TC;
+    end
+        Initial_Swarm.Salp(i).Fitness = temp_fitness; 
+end
+%% Creating Active SSA Swarm
+for i = 1:Number_of_Salp
+    for tp_index = 1:Time_Period
+        Active_Swarm.Salp(i).Time_Period(tp_index).Bin_Allocation_on_TC = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Bin_Allocation_on_TC;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Present_Tran_Cent_Inv_Mat = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Present_Tran_Cent_Inv_Mat;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Bin_Inventory_Adjustment_on_TC;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Bin_Allocation_on_PC = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Bin_Allocation_on_PC;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Waste_Allocation_on_PC = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Waste_Allocation_on_PC;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Waste_Recovery_on_PC = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Waste_Recovery_on_PC;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Waste_Allocation_on_DU = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Waste_Allocation_on_DU;
+        Active_Swarm.Salp(i).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).Recyclable_Waste_Allocation_on_DU;
+        Active_Swarm.Salp(i).Time_Period(tp_index).TrBin_Allocation_on_TC = ...
+            Initial_Swarm.Salp(i).Time_Period(tp_index).TrBin_Allocation_on_TC;
+    end
+    Active_Swarm.Salp(i).Fitness = Initial_Swarm.Salp(i).Fitness;
+end
+%% Instances for Pareto
+SSA_Pareto_Fitness_Mat = 11111111111111111111*ones((Iteration_number*Number_of_Salp),Number_of_Objectives);
+total_purified_sol_num_SSA = 0;
+%% Fitness Storing Matrix
+Iteration_Matrix = 1:Iteration_number;
+Fitness1_Storing_Matrix = zeros(1,Iteration_number);
+% Fitness2_Storing_Matrix = zeros(1,Iteration_number);
+Pseudo_Fitness1_Storing_Matrix = zeros(1,Number_of_Salp);
+% Pseudo_Fitness2_Storing_Matrix = zeros(1,Number_of_Salp);
+Covergence_Curve_Mat = zeros(1,Iteration_number);
+running_covstr_elmnt = 1111111111111111;
+%% Starting Iteration
+for Iteration_Index = 1:Iteration_number
+    disp(['SSA Iteration Number:',num2str(Iteration_Index)]);
+    
+    %% Creating the Structure of SSA
+    % Updating Value of c1
+    c1 = (2*exp(-((4*Iteration_Index)/(Iteration_number))));
+    
+    % Selecting Best Value
+    cff = CFF(Active_Swarm,Number_of_Objectives,Number_of_Salp);
+    
+    % Selecting Food Location
+    Food_Location = cff;
+    
+    % Updating SSA Swarm
+    Updated_SSA_Swarm = SSA_Swarm(Active_Swarm,c1,Food_Location,Number_of_Salp);
+    
+    % Updating Active Swarm
+    Active_Swarm = Updated_SSA_Swarm;
+    
+    %% Pareto Optimality
+    for fit_index = 1:Number_of_Salp
+        running_Solution = Active_Swarm.Salp(fit_index);
+        running_Fitness = fobj_Fitness(running_Solution);
+        dominates_found = 0;
+        if Iteration_Index == 1
+            if total_purified_sol_num_SSA == 0
+                total_purified_sol_num_SSA = total_purified_sol_num_SSA + 1;
+                SSA_Pareto_Solution_Mat.DataStorage(total_purified_sol_num_SSA).Array = running_Solution;
+                SSA_Pareto_Fitness_Mat(total_purified_sol_num_SSA,:) = running_Fitness;
+            else
+                for tpsni = 1:total_purified_sol_num_SSA
+                    if Dominates(SSA_Pareto_Fitness_Mat(tpsni,:),running_Fitness) == 1
+                        dominates_found = 1;
+                        break
+                    end
+                end
+                if dominates_found == 0
+                    for tpsni = 1:total_purified_sol_num_SSA
+                        if Dominates(running_Fitness,SSA_Pareto_Fitness_Mat(tpsni,:)) == 1
+                            SSA_Pareto_Solution_Mat.DataStorage(tpsni).Array = running_Solution;
+                            SSA_Pareto_Fitness_Mat(tpsni,:) = running_Fitness;
+                        end
+                    end
+                    total_purified_sol_num_SSA = total_purified_sol_num_SSA + 1;
+                    SSA_Pareto_Solution_Mat.DataStorage(total_purified_sol_num_SSA).Array = running_Solution;
+                    SSA_Pareto_Fitness_Mat(total_purified_sol_num_SSA,:) = running_Fitness;
+                end
+            end
+        elseif Iteration_Index > 1
+            for tpsni = 1:total_purified_sol_num_SSA
+                if Dominates(SSA_Pareto_Fitness_Mat(tpsni,:),running_Fitness) == 1
+                    dominates_found = 1;
+                    break
+                end
+            end
+            if dominates_found == 0
+                for tpsni = 1:total_purified_sol_num_SSA
+                    if Dominates(running_Fitness,SSA_Pareto_Fitness_Mat(tpsni,:)) == 1
+                        SSA_Pareto_Solution_Mat.DataStorage(tpsni).Array = running_Solution;
+                        SSA_Pareto_Fitness_Mat(tpsni,:) = running_Fitness;
+                    end
+                end
+                total_purified_sol_num_SSA = total_purified_sol_num_SSA + 1;
+                SSA_Pareto_Solution_Mat.DataStorage(total_purified_sol_num_SSA).Array = running_Solution;
+                SSA_Pareto_Fitness_Mat(total_purified_sol_num_SSA,:) = running_Fitness;
+            end
+        end
+    end
+    for i = 1:Number_of_Salp
+        Pseudo_Fitness1_Storing_Matrix(1,i) = Active_Swarm.Salp(i).Fitness(1);
+%         Pseudo_Fitness2_Storing_Matrix(1,i) = Active_Swarm.Salp(i).Fitness(2);
+    end
+    Fitness1_Storing_Matrix(1,Iteration_Index) = min(Pseudo_Fitness1_Storing_Matrix,[],2);
+%     Fitness2_Storing_Matrix(1,Iteration_Index) = min(Pseudo_Fitness2_Storing_Matrix,[],2);
+    
+    if Fitness1_Storing_Matrix(1,Iteration_Index) < running_covstr_elmnt
+        running_covstr_elmnt = Fitness1_Storing_Matrix(1,Iteration_Index);
+        Covergence_Curve_Mat(1,Iteration_Index) = running_covstr_elmnt;
+    else
+        Covergence_Curve_Mat(1,Iteration_Index) = running_covstr_elmnt;
+    end
+end
+Pseudo_SSA_Pareto_Fitness_Mat = SSA_Pareto_Fitness_Mat;
+indv_SSA_Pareto_Sol_num = 0;
+for i = 1:total_purified_sol_num_SSA
+    if Pseudo_SSA_Pareto_Fitness_Mat(i,1) > 0
+        indv_SSA_Pareto_Sol_num = indv_SSA_Pareto_Sol_num + 1;
+        runner_gaps = Pseudo_SSA_Pareto_Fitness_Mat(i,:);
+        for ii = 1:total_purified_sol_num_SSA
+            if Pseudo_SSA_Pareto_Fitness_Mat(ii,:) == runner_gaps
+                Pseudo_SSA_Pareto_Fitness_Mat(ii,:) = -1*ones(1,Number_of_Objectives);
+            end
+        end
+    end
+end
+Absolute_SSA_Pareto_Fitness_Mat = 11111111111111111111*ones(indv_SSA_Pareto_Sol_num,Number_of_Objectives);
+Pseudo2_SSA_Pareto_Fitness_Mat = SSA_Pareto_Fitness_Mat;
+indv_SSA_Pareto_Sol_num2 = 0;
+for i = 1:total_purified_sol_num_SSA
+    if Pseudo2_SSA_Pareto_Fitness_Mat(i,1) > 0
+        indv_SSA_Pareto_Sol_num2 = indv_SSA_Pareto_Sol_num2 + 1;
+        Absolute_SSA_Pareto_Solution_Mat.DataStorage(indv_SSA_Pareto_Sol_num2).Array = SSA_Pareto_Solution_Mat.DataStorage(i).Array;
+        Absolute_SSA_Pareto_Fitness_Mat(indv_SSA_Pareto_Sol_num2,:) = SSA_Pareto_Fitness_Mat(i,:);
+        runner_gaps = Pseudo2_SSA_Pareto_Fitness_Mat(i,:);
+        for ii = 1:total_purified_sol_num_SSA
+            if Pseudo2_SSA_Pareto_Fitness_Mat(ii,:) == runner_gaps
+                Pseudo2_SSA_Pareto_Fitness_Mat(ii,:) = -1*ones(1,Number_of_Objectives);
+            end
+        end
+    end
+end
+
+% [~,abfoind] = sort(Absolute_SSA_Pareto_Fitness_Mat(:,1),'ascend');
+% xs = Absolute_SSA_Pareto_Fitness_Mat(:,1);
+% ys = Absolute_SSA_Pareto_Fitness_Mat(:,2);
+% x = xs(abfoind);
+% y = ys(abfoind);
+% figure(1)
+% plot(x,y,'mp');
+% title('Pareto Optimal Front for SSA');
+% xlabel('Objetive 1');
+% ylabel('Objetive 2');
+
+figure(1)
+plot(Iteration_Matrix,Covergence_Curve_Mat);
+title('Convergence Curve for SSA');
+xlabel('Iterations');
+ylabel('Total Cost');
